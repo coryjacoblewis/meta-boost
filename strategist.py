@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from typing import Literal
 
 from google import genai
 from google.genai import errors, types
+from pydantic import BaseModel, Field
 
 DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 
@@ -43,6 +45,60 @@ class CampaignBrief:
     marketing_goal: str
     channel: str
     tone: str
+
+
+# --- Structured output schema --------------------------------------------------
+# Only the conversational flow is deeply typed; richer sections (brief, A/B tests,
+# rationale) ride along as Markdown strings so the model keeps its formatting
+# freedom and the schema stays small.
+
+
+class Turn(BaseModel):
+    speaker: Literal["Business", "User"]
+    text: str
+
+
+class Branch(BaseModel):
+    reaction_label: str = Field(
+        description="Short label for the user reaction, e.g. 'interested', "
+        "'asks a question', 'not now'."
+    )
+    turns: list[Turn]
+
+
+class Flow(BaseModel):
+    opener: str
+    branches: list[Branch]
+    final_cta: str
+
+
+class Kpis(BaseModel):
+    open_rate: str
+    click_through_rate: str
+    conversion_rate: str
+
+
+class Campaign(BaseModel):
+    title: str
+    brief: str = Field(description="Markdown: 2-3 sentence concept + primary CTA.")
+    flow: Flow
+    ab_tests_md: str = Field(
+        description="Markdown: two A/B tests (opening message + in-flow CTA), each "
+        "with Variation A/B and a rationale naming the lever."
+    )
+    kpis: Kpis
+    rationale: str = Field(
+        description="Markdown: PM rationale anchoring each KPI to a rough benchmark."
+    )
+
+
+class StrategyResult(BaseModel):
+    campaigns: list[Campaign] = []
+    recommended_next: str = ""
+    fallback_markdown: str | None = Field(
+        default=None,
+        description="Internal use only; always leave null.",
+    )
 
 
 SYSTEM_INSTRUCTION = """\

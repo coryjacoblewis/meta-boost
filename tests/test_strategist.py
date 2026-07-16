@@ -52,6 +52,36 @@ def _patch_client(monkeypatch, models: _FakeModels) -> None:
     )
 
 
+# --- models --------------------------------------------------------------------
+
+
+def test_strategy_result_models_build_a_full_campaign() -> None:
+    campaign = strategist.Campaign(
+        title="Bean Quiz",
+        brief="A fun quiz.",
+        flow=strategist.Flow(
+            opener="Hey! Quick question?",
+            branches=[
+                strategist.Branch(
+                    reaction_label="interested",
+                    turns=[
+                        strategist.Turn(speaker="User", text="Yes!"),
+                        strategist.Turn(speaker="Business", text="Great — here's the link."),
+                    ],
+                )
+            ],
+            final_cta="Tap to claim.",
+        ),
+        ab_tests_md="*A/B test*\n- A\n- B",
+        kpis=strategist.Kpis(open_rate="75%", click_through_rate="22%", conversion_rate="6%"),
+        rationale="Because reasons.",
+    )
+    result = strategist.StrategyResult(campaigns=[campaign], recommended_next="Run it.")
+    assert result.campaigns[0].flow.branches[0].turns[1].speaker == "Business"
+    assert result.campaigns[0].kpis.open_rate == "75%"
+    assert result.fallback_markdown is None
+
+
 # --- build_prompt --------------------------------------------------------------
 
 
