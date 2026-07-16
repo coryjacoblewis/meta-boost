@@ -1,7 +1,11 @@
 # 🚀 Meta-Boost
 
+[![CI](https://github.com/coryjacoblewis/meta-boost/actions/workflows/ci.yml/badge.svg)](https://github.com/coryjacoblewis/meta-boost/actions/workflows/ci.yml)
+
 **AI-Powered Micro-Campaign Strategist for SMBs**
 _Unlock personalized conversational marketing on Meta platforms, instantly._
+
+**▶️ [Try the live demo](https://meta-boost-egun2vlhdbtes2zumjowbp.streamlit.app/)** — no install, no key required.
 
 Meta-Boost is a web app that turns a short business brief into ready-to-send
 conversational micro-campaigns for Meta's messaging platforms (WhatsApp Business,
@@ -86,6 +90,24 @@ streamlit run app.py
 
 Get a Gemini API key at https://aistudio.google.com/apikey.
 
+### Deploy (Streamlit Community Cloud)
+
+The app runs on the free [Streamlit Community Cloud](https://share.streamlit.io) with no
+code changes:
+
+1. Push this repo to GitHub (already done if you're reading this there).
+2. On Streamlit Cloud, **New app** → pick this repo, branch `main`, main file `app.py`.
+3. In **Advanced settings → Secrets**, add your key:
+   ```toml
+   GEMINI_API_KEY = "your-real-key"
+   ```
+   Streamlit exposes secrets as environment variables, so the app's existing
+   `os.getenv("GEMINI_API_KEY")` picks it up — no code change needed.
+4. **Deploy.** `requirements.txt` is installed automatically.
+
+> Never commit your real key. Local dev uses `.env` (gitignored); the cloud uses the
+> Secrets manager above.
+
 ### Tests
 
 The strategy engine is unit-tested with the Gemini client mocked at the SDK
@@ -113,6 +135,7 @@ modes the UI relies on (missing key, empty response, wrapped API error).
 meta-boost-MVP/
 ├── app.py              # Streamlit UI (form, freemium gate, upgrade modal)
 ├── strategist.py       # Gemini strategy engine + prompt
+├── .github/workflows/  # CI: runs the test suite on every push/PR
 ├── requirements.txt
 ├── .env.example        # copy to .env and add your key
 ├── PROJECT_CONCEPT.md  # full product concept & PM framing

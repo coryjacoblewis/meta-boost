@@ -10,7 +10,7 @@ import os
 from dataclasses import dataclass
 
 from google import genai
-from google.genai import types
+from google.genai import errors, types
 
 DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
 
@@ -124,6 +124,33 @@ campaign to run first and why.
 """
 
 
+def _friendly_api_error(exc: Exception) -> str:
+    """Translate an SDK/transport error into a message safe to show a user.
+
+    Maps the common failure modes to actionable guidance and deliberately avoids
+    echoing raw SDK internals (stack-ish detail, request IDs) into the UI.
+    """
+    if isinstance(exc, errors.APIError):
+        code = getattr(exc, "code", None)
+        if code in (401, 403):
+            return (
+                "Gemini rejected the API key. Check that GEMINI_API_KEY is valid "
+                "and has access to the selected model."
+            )
+        if code == 429:
+            return (
+                "Gemini rate limit or quota reached. Wait a moment before "
+                "regenerating, or check your plan's quota."
+            )
+        if isinstance(exc, errors.ServerError):
+            return "Gemini is temporarily unavailable. Please try again shortly."
+        return "Gemini couldn't process this request. Try adjusting your brief and regenerating."
+    # httpx raises ConnectError/TimeoutException etc. for transport failures.
+    if isinstance(exc, (ConnectionError, TimeoutError)) or "timeout" in type(exc).__name__.lower():
+        return "Couldn't reach Gemini — check your network connection and try again."
+    return "Gemini request failed unexpectedly. Please try regenerating."
+
+
 def build_prompt(brief: CampaignBrief) -> str:
     return PROMPT_TEMPLATE.format(
         business_type=brief.business_type,
@@ -164,7 +191,7 @@ def generate_strategy(
             ),
         )
     except Exception as exc:  # noqa: BLE001 - surface a clean message to the UI
-        raise RuntimeError(f"Gemini request failed: {exc}") from exc
+        raise RuntimeError(_friendly_api_error(exc)) from exc
 
     text = (response.text or "").strip()
     if not text:

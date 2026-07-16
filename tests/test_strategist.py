@@ -135,3 +135,33 @@ def test_generate_strategy_api_error_is_wrapped(monkeypatch, brief) -> None:
     _patch_client(monkeypatch, models)
     with pytest.raises(RuntimeError, match="Gemini request failed"):
         generate_strategy(brief, api_key="test-key")
+
+
+def test_generate_strategy_maps_auth_error(monkeypatch, brief) -> None:
+    exc = strategist.errors.ClientError(403, {"error": {"message": "permission denied"}})
+    _patch_client(monkeypatch, _FakeModels("", raise_exc=exc))
+    with pytest.raises(RuntimeError, match="rejected the API key"):
+        generate_strategy(brief, api_key="test-key")
+
+
+def test_generate_strategy_maps_rate_limit(monkeypatch, brief) -> None:
+    exc = strategist.errors.ClientError(429, {"error": {"message": "quota"}})
+    _patch_client(monkeypatch, _FakeModels("", raise_exc=exc))
+    with pytest.raises(RuntimeError, match="rate limit or quota"):
+        generate_strategy(brief, api_key="test-key")
+
+
+def test_generate_strategy_maps_server_error(monkeypatch, brief) -> None:
+    exc = strategist.errors.ServerError(503, {"error": {"message": "backend down"}})
+    _patch_client(monkeypatch, _FakeModels("", raise_exc=exc))
+    with pytest.raises(RuntimeError, match="temporarily unavailable"):
+        generate_strategy(brief, api_key="test-key")
+
+
+def test_generate_strategy_error_does_not_leak_raw_detail(monkeypatch, brief) -> None:
+    # A secret-ish string in the raw exception must never reach the user message.
+    exc = strategist.errors.ClientError(429, {"error": {"message": "SECRET-quota-token-abc123"}})
+    _patch_client(monkeypatch, _FakeModels("", raise_exc=exc))
+    with pytest.raises(RuntimeError) as info:
+        generate_strategy(brief, api_key="test-key")
+    assert "SECRET-quota-token-abc123" not in str(info.value)

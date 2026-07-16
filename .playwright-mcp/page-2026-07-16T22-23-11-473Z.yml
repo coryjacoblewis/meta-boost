@@ -1,0 +1,100 @@
+- generic [ref=e2]:
+  - generic [ref=e6]:
+    - iframe [active] [ref=e7]:
+      - generic [ref=f3e2]:
+        - generic [ref=f3e8]:
+          - heading "Your plan" [level=3] [ref=f3e13]
+          - status [ref=f3e16]:
+            - paragraph [ref=f3e20]:
+              - strong [ref=f3e21]: Free
+              - text: — 0/3 generations used
+          - progressbar "progress" [ref=f3e25]
+          - button [ref=f3e30] [cursor=pointer]:
+            - paragraph [ref=f3e34]: ⚡ Upgrade to Pro
+        - generic [ref=f3e37]:
+          - banner [ref=f3e38]:
+            - generic [ref=f3e41]:
+              - generic [ref=f3e190]:
+                - img "Running..." [ref=f3e191]
+                - button "Stop" [ref=f3e196] [cursor=pointer]
+              - generic [ref=f3e42]:
+                - button "Fork" [ref=f3e44] [cursor=pointer]
+                - button [ref=f3e48] [cursor=pointer]
+              - button "Main menu" [ref=f3e52] [cursor=pointer]
+          - generic [ref=f3e58]:
+            - heading "🚀 Meta-Boost" [level=1] [ref=f3e63]:
+              - text: 🚀 Meta-Boost
+              - generic [ref=f3e64]:
+                - link "Link to heading":
+                  - /url: "#meta-boost"
+            - paragraph [ref=f3e69]: Unlock personalized conversational marketing on Meta platforms, instantly. Describe your business and goal — get ready-to-send micro-campaigns.
+            - generic [ref=f3e72]:
+              - heading "1. Your business" [level=3] [ref=f3e77]:
+                - text: 1. Your business
+                - generic [ref=f3e78]:
+                  - link "Link to heading":
+                    - /url: "#1-your-business"
+              - generic [ref=f3e80]:
+                - paragraph [ref=f3e84]: Business type
+                - textbox "Business type" [ref=f3e87]:
+                  - /placeholder: e.g., Online fashion boutique, Local coffee shop, B2B SaaS startup
+                  - text: Local coffee shop
+              - generic [ref=f3e89]:
+                - paragraph [ref=f3e93]: Primary product or service
+                - textbox "Primary product or service" [ref=f3e96]:
+                  - /placeholder: e.g., Handmade summer dresses
+                  - text: Single-origin espresso subscriptions
+              - generic [ref=f3e98]:
+                - paragraph [ref=f3e102]: Target audience
+                - textbox "Target audience" [ref=f3e104]:
+                  - /placeholder: e.g., Gen Z, trend-conscious, urban, budget-aware
+                  - text: Remote workers, 25-40, quality-focused
+              - heading "2. Your campaign" [level=3] [ref=f3e109]:
+                - text: 2. Your campaign
+                - generic [ref=f3e110]:
+                  - link "Link to heading":
+                    - /url: "#2-your-campaign"
+              - generic [ref=f3e112]:
+                - paragraph [ref=f3e116]: Current offering or promotion
+                - textbox "Current offering or promotion" [ref=f3e119]:
+                  - /placeholder: e.g., 20% off the summer collection this week
+                  - text: First month 30% off
+              - generic [ref=f3e121]:
+                - paragraph [ref=f3e125]: Primary marketing goal
+                - group [ref=f3e127]:
+                  - combobox "Primary marketing goal" [ref=f3e128]: Increase brand awareness
+                  - button "Open" [ref=f3e129] [cursor=pointer]
+              - generic [ref=f3e134]:
+                - paragraph [ref=f3e138]: Preferred Meta channel
+                - radiogroup "Preferred Meta channel" [ref=f3e139]:
+                  - generic [ref=f3e140] [cursor=pointer]:
+                    - radio "WhatsApp Business" [checked] [ref=f3e142]
+                    - paragraph [ref=f3e148]: WhatsApp Business
+                  - generic [ref=f3e149] [cursor=pointer]:
+                    - radio "Messenger" [ref=f3e151]
+                    - paragraph [ref=f3e157]: Messenger
+                  - generic [ref=f3e158] [cursor=pointer]:
+                    - radio "Instagram DMs" [ref=f3e160]
+                    - paragraph [ref=f3e166]: Instagram DMs
+              - generic [ref=f3e168]:
+                - paragraph [ref=f3e172]: Desired tone
+                - group [ref=f3e174]:
+                  - combobox "Desired tone" [ref=f3e175]: Friendly & approachable
+                  - button "Open" [ref=f3e176] [cursor=pointer]
+              - button [active] [ref=f3e183] [cursor=pointer]:
+                - paragraph [ref=f3e187]: Generate campaigns
+            - paragraph [ref=f3e204]: Strategizing your micro-campaigns…
+    - link [ref=e8] [cursor=pointer]:
+      - /url: https://streamlit.io/cloud
+    - link [ref=e16] [cursor=pointer]:
+      - /url: https://share.streamlit.io/user/coryjacoblewis
+      - img "App Creator Avatar" [ref=e17]
+  - iframe [ref=e1]:
+    - generic [ref=f1e2]:
+      - generic [ref=f1e11]:
+        - heading [level=1] [ref=f1e12]:
+          - paragraph [ref=f1e13]: Status embed installed correctly
+        - generic [ref=f1e14]: This will be shown if an incident or maintenance is posted on your status page.
+        - link "View latest updates" [ref=f1e16] [cursor=pointer]:
+          - /url: https://www.streamlitstatus.com?utm_source=embed
+      - button [ref=f1e18] [cursor=pointer]
