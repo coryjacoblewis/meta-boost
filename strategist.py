@@ -207,6 +207,56 @@ def _friendly_api_error(exc: Exception) -> str:
     return "Gemini request failed unexpectedly. Please try regenerating."
 
 
+def _flow_to_markdown(flow: Flow) -> str:
+    lines = ["**Conversational flow**", "", f"**Business:** {flow.opener}", ""]
+    for branch in flow.branches:
+        lines.append(f"*If the user is {branch.reaction_label}:*")
+        for turn in branch.turns:
+            lines.append(f"- **{turn.speaker}:** {turn.text}")
+        lines.append("")
+    lines.append(f"**Final CTA — Business:** {flow.final_cta}")
+    return "\n".join(lines)
+
+
+def _campaign_to_markdown(campaign: Campaign) -> str:
+    kpis = campaign.kpis
+    return "\n".join(
+        [
+            f"## {campaign.title}",
+            "",
+            f"**Strategy brief:** {campaign.brief}",
+            "",
+            _flow_to_markdown(campaign.flow),
+            "",
+            campaign.ab_tests_md,
+            "",
+            "**Simulated KPI predictions** *(plausible planning estimates, not guarantees)*",
+            "",
+            "| Metric | Estimate |",
+            "| --- | --- |",
+            f"| Open rate | {kpis.open_rate} |",
+            f"| Click-through rate | {kpis.click_through_rate} |",
+            f"| Conversion rate | {kpis.conversion_rate} |",
+            "",
+            f"**PM rationale:** {campaign.rationale}",
+        ]
+    )
+
+
+def result_to_markdown(result: StrategyResult) -> str:
+    """Rebuild a full Markdown document from a structured result.
+
+    In degraded mode (``fallback_markdown`` set) the raw blob is returned verbatim.
+    """
+    if result.fallback_markdown is not None:
+        return result.fallback_markdown
+    blocks = [_campaign_to_markdown(c) for c in result.campaigns]
+    doc = "\n\n---\n\n".join(blocks)
+    if result.recommended_next:
+        doc += f"\n\n## Recommended next step\n\n{result.recommended_next}"
+    return doc
+
+
 def build_prompt(brief: CampaignBrief) -> str:
     return PROMPT_TEMPLATE.format(
         business_type=brief.business_type,

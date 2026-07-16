@@ -82,6 +82,45 @@ def test_strategy_result_models_build_a_full_campaign() -> None:
     assert result.fallback_markdown is None
 
 
+# --- result_to_markdown --------------------------------------------------------
+
+
+def test_result_to_markdown_includes_titles_kpis_and_next() -> None:
+    result = strategist.StrategyResult(
+        campaigns=[
+            strategist.Campaign(
+                title="Bean Quiz",
+                brief="A fun quiz.",
+                flow=strategist.Flow(
+                    opener="Hey! Quick question?",
+                    branches=[
+                        strategist.Branch(
+                            reaction_label="interested",
+                            turns=[strategist.Turn(speaker="Business", text="Here's the link.")],
+                        )
+                    ],
+                    final_cta="Tap to claim.",
+                ),
+                ab_tests_md="*A/B test*\n- A\n- B",
+                kpis=strategist.Kpis(open_rate="75%", click_through_rate="22%", conversion_rate="6%"),
+                rationale="Because reasons.",
+            )
+        ],
+        recommended_next="Run the quiz first.",
+    )
+    md = strategist.result_to_markdown(result)
+    assert "Bean Quiz" in md
+    assert "75%" in md and "22%" in md and "6%" in md
+    assert "Hey! Quick question?" in md
+    assert "Run the quiz first" in md
+    assert "Recommended next step" in md
+
+
+def test_result_to_markdown_returns_fallback_verbatim() -> None:
+    result = strategist.StrategyResult(fallback_markdown="## Campaign 1\n\nRaw body")
+    assert strategist.result_to_markdown(result) == "## Campaign 1\n\nRaw body"
+
+
 # --- build_prompt --------------------------------------------------------------
 
 
