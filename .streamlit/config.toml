@@ -1,12 +1,16 @@
-# Makes `streamlit run app.py` work everywhere, including proxied web previews
-# (Google Cloud Shell, GitHub Codespaces, Gitpod) where the browser's origin
-# differs from the server and Streamlit would otherwise reject the WebSocket.
-# On a plain localhost run these settings are harmless.
+# Streamlit configuration — secure defaults.
+# XSRF and CORS protection stay ON (Streamlit's defaults); do NOT disable them
+# for a publicly reachable deployment.
+#
+# Only if you run behind a proxied web preview (Google Cloud Shell, GitHub
+# Codespaces, Gitpod) where the browser origin differs from the server — which
+# makes Streamlit reject the WebSocket — start it with these flags, for that
+# session only:
+#
+#   streamlit run app.py --server.enableCORS=false --server.enableXsrfProtection=false
 
 [server]
 headless = true
-enableCORS = false
-enableXsrfProtection = false
 
 [browser]
 gatherUsageStats = false
