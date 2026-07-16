@@ -194,13 +194,23 @@ Produce 2–3 distinct campaigns. For each campaign fill every field:
 - `title`: catchy title.
 - `brief`: 2–3 sentence concept + primary CTA (Markdown).
 - `flow`: an `opener` message from the business, then `branches` — one per likely \
-user reaction (e.g. interested / asks a question / not now). Each branch has a \
-`reaction_label` and a short `turns` list alternating speaker "Business"/"User". \
-End with a single `final_cta`. Write copy specific to {channel} that an SMB could \
-send as-is.
+user reaction. Each branch has a `reaction_label` (a short human-readable phrase in \
+plain words, e.g. "interested", "asks a question", "not now" — never snake_case) and \
+a short `turns` list alternating speaker "Business"/"User". End with a single \
+`final_cta`. Write copy specific to {channel} that an SMB could send as-is.
 - `ab_tests_md` (Markdown): TWO A/B tests — one for the opening message, one for a \
-key in-flow CTA — each with **Variation A**, **Variation B**, and a **Rationale** \
-naming the lever (urgency, social proof, personalization, clarity, etc.).
+key in-flow CTA. Format as plain Markdown with real line breaks; do NOT use HTML \
+(no `<br>`) and do NOT use `#` headings. Use exactly this shape:
+
+  *A/B test — Opening message*
+  - **Variation A:** …
+  - **Variation B:** …
+  - **Rationale:** name the lever (urgency, social proof, personalization, clarity, …).
+
+  *A/B test — Key in-flow CTA*
+  - **Variation A:** …
+  - **Variation B:** …
+  - **Rationale:** name the lever.
 - `kpis`: open_rate, click_through_rate, conversion_rate as percent strings \
 (e.g. "72%"). Keep them realistic and varied across campaigns, not uniformly rosy.
 - `rationale` (Markdown): explain why the KPIs are plausible, anchoring each to a \

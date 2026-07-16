@@ -16,7 +16,10 @@ from strategist import (
     GOALS,
     TONES,
     CampaignBrief,
+    Flow,
+    StrategyResult,
     generate_strategy,
+    result_to_markdown,
 )
 
 load_dotenv()
@@ -43,6 +46,44 @@ def _run_generation(brief: CampaignBrief) -> None:
         except RuntimeError as exc:
             st.session_state.result = None
             st.session_state.error = str(exc)
+
+
+def render_flow(flow: Flow) -> None:
+    """Render a conversational flow as a chat thread with branch dividers."""
+    with st.chat_message("Business", avatar="🏪"):
+        st.markdown(flow.opener)
+    for branch in flow.branches:
+        st.markdown(f"**↳ If the user is _{branch.reaction_label}_:**")
+        for turn in branch.turns:
+            avatar = "🏪" if turn.speaker == "Business" else "👤"
+            with st.chat_message(turn.speaker, avatar=avatar):
+                st.markdown(turn.text)
+    with st.chat_message("Business", avatar="🏪"):
+        st.markdown(f"**Final CTA:** {flow.final_cta}")
+
+
+def render_result(result: StrategyResult) -> None:
+    """Render a structured result, or the degraded Markdown view."""
+    if result.fallback_markdown is not None:
+        st.caption("Showing the basic view for this result.")
+        st.markdown(result.fallback_markdown)
+        return
+    for campaign in result.campaigns:
+        st.header(campaign.title)
+        st.markdown(campaign.brief)
+        st.markdown("**Conversational flow**")
+        render_flow(campaign.flow)
+        st.markdown("**Simulated KPI predictions** *(plausible estimates, not guarantees)*")
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Open rate", campaign.kpis.open_rate)
+        c2.metric("Click-through", campaign.kpis.click_through_rate)
+        c3.metric("Conversion", campaign.kpis.conversion_rate)
+        st.markdown(campaign.ab_tests_md)
+        st.markdown(f"**PM rationale:** {campaign.rationale}")
+        st.divider()
+    if result.recommended_next:
+        st.subheader("Recommended next step")
+        st.markdown(result.recommended_next)
 
 
 def _at_free_limit() -> bool:
@@ -183,6 +224,8 @@ if st.session_state.get("error"):
     st.error(st.session_state.error)
 
 if st.session_state.get("result"):
+    result = st.session_state.result
+    markdown_doc = result_to_markdown(result)
     st.divider()
     col_a, col_b = st.columns(2)
     with col_a:
@@ -191,7 +234,7 @@ if st.session_state.get("result"):
     with col_b:
         st.download_button(
             "⬇️ Download as Markdown",
-            data=st.session_state.result,
+            data=markdown_doc,
             file_name="meta-boost-campaigns.md",
             mime="text/markdown",
             use_container_width=True,
@@ -203,10 +246,10 @@ if st.session_state.get("result"):
             "Upgrade to Pro for unlimited campaigns."
         )
 
-    st.markdown(st.session_state.result)
+    render_result(result)
 
     with st.expander("Copy raw Markdown"):
-        st.code(st.session_state.result, language="markdown")
+        st.code(markdown_doc, language="markdown")
 
     st.caption(
         "⚠️ KPI figures are AI-generated plausible planning estimates, not guarantees "
