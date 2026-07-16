@@ -52,7 +52,7 @@ Meta-Boost is scoped to showcase the competencies for a **Business Agents Growth
 
 | Competency | How Meta-Boost demonstrates it | Where |
 | --- | --- | --- |
-| **Product-Led Growth (SMBs)** | Self-serve, zero-friction path to value; a freemium funnel that lets the product sell itself. | `app.py` (form + freemium gate) |
+| **Product-Led Growth (SMBs)** | Self-serve, zero-friction path to value; a freemium funnel that lets the product sell itself. | `app.py` (form + funnel), `plans.py` (gate logic) |
 | **AI integration & prompt engineering** | A single orchestrated prompt reliably returns structured, multi-component strategy (concepts, branched flows, A/B tests, KPIs). | `strategist.py` |
 | **Growth strategy & funnel optimization** | Every campaign is tied to the user's stated goal, and each output ends with a prioritized "run this first" recommendation. | `strategist.py` prompt |
 | **Experimentation** | Each campaign ships two A/B tests (opening message + in-flow CTA) with the specific lever and rationale. | generated output |
@@ -119,8 +119,9 @@ pytest
 ```
 
 Coverage: prompt construction (every brief field lands, no unfilled placeholders),
-the success path (key/model overrides, `.env` fallback), and all three failure
-modes the UI relies on (missing key, empty response, wrapped API error).
+the success path (key/model overrides, `.env` fallback), all three failure
+modes the UI relies on (missing key, empty response, wrapped API error), and the
+freemium gate logic (paywall trigger, Pro bypass, usage meter) in `plans.py`.
 
 ### Configuration
 
@@ -135,6 +136,7 @@ modes the UI relies on (missing key, empty response, wrapped API error).
 meta-boost-MVP/
 ├── app.py              # Streamlit UI (form, freemium gate, upgrade modal)
 ├── strategist.py       # Gemini strategy engine + prompt
+├── plans.py            # Freemium gate logic (pure, UI-independent, unit-tested)
 ├── .github/workflows/  # CI: runs the test suite on every push/PR
 ├── requirements.txt
 ├── .env.example        # copy to .env and add your key

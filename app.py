@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 
 import streamlit as st
 
+from plans import FREE_LIMIT, FREE_PLAN, PRO_PLAN, at_free_limit, usage_fraction
 from strategist import (
     CHANNELS,
     GOALS,
@@ -26,11 +27,9 @@ load_dotenv()
 
 st.set_page_config(page_title="Meta-Boost", page_icon="🚀", layout="centered")
 
-FREE_LIMIT = 3  # campaign generations per session on the Free plan
-
 # --- Session defaults ----------------------------------------------------------
 
-st.session_state.setdefault("plan", "Free")
+st.session_state.setdefault("plan", FREE_PLAN)
 st.session_state.setdefault("gen_count", 0)
 st.session_state.setdefault("result", None)
 st.session_state.setdefault("error", None)
@@ -86,10 +85,6 @@ def render_result(result: StrategyResult) -> None:
         st.markdown(result.recommended_next)
 
 
-def _at_free_limit() -> bool:
-    return st.session_state.plan == "Free" and st.session_state.gen_count >= FREE_LIMIT
-
-
 @st.dialog("⚡ Upgrade to Meta-Boost Pro")
 def upgrade_dialog() -> None:
     st.write(
@@ -118,7 +113,7 @@ def upgrade_dialog() -> None:
         )
     st.divider()
     if st.button("Start Pro — $19/mo", type="primary", use_container_width=True):
-        st.session_state.plan = "Pro"
+        st.session_state.plan = PRO_PLAN
         st.toast("Welcome to Pro! (mock upgrade — billing isn't wired up in this MVP)")
         st.rerun()
     st.caption(
@@ -129,7 +124,7 @@ def upgrade_dialog() -> None:
 
 def attempt_generation(brief: CampaignBrief) -> None:
     """Gate on the free limit, otherwise generate and count the usage."""
-    if _at_free_limit():
+    if at_free_limit(st.session_state.plan, st.session_state.gen_count):
         upgrade_dialog()
         return
     _run_generation(brief)
@@ -144,16 +139,16 @@ def attempt_generation(brief: CampaignBrief) -> None:
 
 with st.sidebar:
     st.markdown("### Your plan")
-    if st.session_state.plan == "Pro":
+    if st.session_state.plan == PRO_PLAN:
         st.success("**Pro** — unlimited ♾️")
         if st.button("Manage plan", use_container_width=True):
-            st.session_state.plan = "Free"
+            st.session_state.plan = FREE_PLAN
             st.session_state.gen_count = 0
             st.rerun()
     else:
         used = st.session_state.gen_count
         st.info(f"**Free** — {used}/{FREE_LIMIT} generations used")
-        st.progress(min(used / FREE_LIMIT, 1.0))
+        st.progress(usage_fraction(used))
         if st.button("⚡ Upgrade to Pro", type="primary", use_container_width=True):
             upgrade_dialog()
         if used > 0:
@@ -240,7 +235,7 @@ if st.session_state.get("result"):
             use_container_width=True,
         )
 
-    if _at_free_limit():
+    if at_free_limit(st.session_state.plan, st.session_state.gen_count):
         st.info(
             f"You've used all {FREE_LIMIT} free generations this session. "
             "Upgrade to Pro for unlimited campaigns."
