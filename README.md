@@ -12,21 +12,17 @@ product-manager-style rationale.
 
 ## Demo
 
-_Add screenshots/GIF here to let the repo sell itself. Suggested captures:_
+**The input form** — a single guided brief captures business + campaign context.
 
-1. The input form (business + campaign brief).
-2. A generated campaign — flow + A/B tests + KPI table.
-3. The "Upgrade to Pro" modal (the monetization flow).
+![Input form](docs/01-input.jpg)
 
-Drop the images in `docs/` and uncomment:
+**A generated campaign** — conversational flow, A/B tests, and a benchmark-anchored KPI table.
 
-```markdown
-<!-- ![Input form](docs/01-input.png) -->
-<!-- ![Generated campaign](docs/02-campaign.png) -->
-<!-- ![Upgrade to Pro](docs/03-upgrade.png) -->
-```
+![Generated campaign](docs/02-campaign.jpg)
 
-To capture them: run `streamlit run app.py`, walk the flow, and screenshot each step.
+**Upgrade to Pro** — the freemium gate and monetization flow.
+
+![Upgrade to Pro](docs/03-upgrade.jpg)
 
 ## What problem it solves
 
@@ -90,6 +86,20 @@ streamlit run app.py
 
 Get a Gemini API key at https://aistudio.google.com/apikey.
 
+### Tests
+
+The strategy engine is unit-tested with the Gemini client mocked at the SDK
+boundary — the suite runs offline and needs **no API key**:
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+Coverage: prompt construction (every brief field lands, no unfilled placeholders),
+the success path (key/model overrides, `.env` fallback), and all three failure
+modes the UI relies on (missing key, empty response, wrapped API error).
+
 ### Configuration
 
 | Variable | Default | Notes |
@@ -106,6 +116,8 @@ meta-boost-MVP/
 ├── requirements.txt
 ├── .env.example        # copy to .env and add your key
 ├── PROJECT_CONCEPT.md  # full product concept & PM framing
+├── requirements-dev.txt # test dependencies (pytest)
+├── tests/              # unit tests (mocked Gemini client, no key needed)
 ├── samples/            # example generated campaigns (3 industries)
 ├── docs/               # screenshots for the README demo section
 └── README.md
