@@ -119,7 +119,7 @@ Rules:
   whole response.
 """
 
-PROMPT_TEMPLATE = """\
+MARKDOWN_PROMPT_TEMPLATE = """\
 Design micro-campaigns for this business.
 
 - **Business type:** {business_type}
@@ -177,6 +177,37 @@ rosy.
 
 After the campaigns, add a short **## Recommended next step** section telling the SMB which \
 campaign to run first and why.
+"""
+
+STRUCTURED_PROMPT_TEMPLATE = """\
+Design micro-campaigns for this business and return them as structured data.
+
+- **Business type:** {business_type}
+- **Primary product/service:** {product_service}
+- **Target audience:** {target_audience}
+- **Current offering/promotion:** {offering}
+- **Primary marketing goal:** {marketing_goal}
+- **Preferred Meta channel:** {channel}
+- **Desired tone:** {tone}
+
+Produce 2–3 distinct campaigns. For each campaign fill every field:
+- `title`: catchy title.
+- `brief`: 2–3 sentence concept + primary CTA (Markdown).
+- `flow`: an `opener` message from the business, then `branches` — one per likely \
+user reaction (e.g. interested / asks a question / not now). Each branch has a \
+`reaction_label` and a short `turns` list alternating speaker "Business"/"User". \
+End with a single `final_cta`. Write copy specific to {channel} that an SMB could \
+send as-is.
+- `ab_tests_md` (Markdown): TWO A/B tests — one for the opening message, one for a \
+key in-flow CTA — each with **Variation A**, **Variation B**, and a **Rationale** \
+naming the lever (urgency, social proof, personalization, clarity, etc.).
+- `kpis`: open_rate, click_through_rate, conversion_rate as percent strings \
+(e.g. "72%"). Keep them realistic and varied across campaigns, not uniformly rosy.
+- `rationale` (Markdown): explain why the KPIs are plausible, anchoring each to a \
+rough industry benchmark, and connect the campaign to the goal of "{marketing_goal}".
+
+Also set `recommended_next` (Markdown): which campaign to run first and why.
+Leave `fallback_markdown` null.
 """
 
 
@@ -257,24 +288,52 @@ def result_to_markdown(result: StrategyResult) -> str:
     return doc
 
 
+def _brief_fields(brief: CampaignBrief) -> dict[str, str]:
+    return {
+        "business_type": brief.business_type,
+        "product_service": brief.product_service,
+        "target_audience": brief.target_audience,
+        "offering": brief.offering,
+        "marketing_goal": brief.marketing_goal,
+        "channel": brief.channel,
+        "tone": brief.tone,
+    }
+
+
 def build_prompt(brief: CampaignBrief) -> str:
-    return PROMPT_TEMPLATE.format(
-        business_type=brief.business_type,
-        product_service=brief.product_service,
-        target_audience=brief.target_audience,
-        offering=brief.offering,
-        marketing_goal=brief.marketing_goal,
-        channel=brief.channel,
-        tone=brief.tone,
+    """The structured prompt (asks the model to fill the StrategyResult schema)."""
+    return STRUCTURED_PROMPT_TEMPLATE.format(**_brief_fields(brief))
+
+
+def build_markdown_prompt(brief: CampaignBrief) -> str:
+    """The legacy Markdown prompt, retained for the graceful-degrade path."""
+    return MARKDOWN_PROMPT_TEMPLATE.format(**_brief_fields(brief))
+
+
+def _generate_markdown(
+    brief: CampaignBrief, *, client, model: str | None = None
+) -> str:
+    """Fallback generation: the proven Markdown path, returned as a raw string."""
+    response = client.models.generate_content(
+        model=model or DEFAULT_MODEL,
+        contents=build_markdown_prompt(brief),
+        config=types.GenerateContentConfig(
+            system_instruction=SYSTEM_INSTRUCTION,
+            temperature=0.8,
+        ),
     )
+    text = (response.text or "").strip()
+    if not text:
+        raise RuntimeError("Gemini returned an empty response. Try regenerating.")
+    return text
 
 
 def generate_strategy(
     brief: CampaignBrief,
     api_key: str | None = None,
     model: str | None = None,
-) -> str:
-    """Call Gemini and return the generated campaign plan as Markdown.
+) -> StrategyResult:
+    """Call Gemini for structured campaigns; degrade to Markdown on parse failure.
 
     Raises RuntimeError with a friendly message on missing key or API failure.
     """
@@ -294,12 +353,32 @@ def generate_strategy(
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION,
                 temperature=0.8,
+                response_mime_type="application/json",
+                response_schema=StrategyResult,
             ),
         )
     except Exception as exc:  # noqa: BLE001 - surface a clean message to the UI
         raise RuntimeError(_friendly_api_error(exc)) from exc
 
-    text = (response.text or "").strip()
-    if not text:
-        raise RuntimeError("Gemini returned an empty response. Try regenerating.")
-    return text
+    result = response.parsed
+    if result is None:
+        text = (response.text or "").strip()
+        if not text:
+            raise RuntimeError("Gemini returned an empty response. Try regenerating.")
+        try:
+            result = StrategyResult.model_validate_json(text)
+        except Exception:  # noqa: BLE001 - fall through to the Markdown degrade path
+            result = None
+
+    if result is not None and result.campaigns:
+        result.fallback_markdown = None
+        return result
+
+    # Degrade: re-request in the proven Markdown mode.
+    try:
+        markdown = _generate_markdown(brief, client=client, model=model)
+    except RuntimeError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        raise RuntimeError(_friendly_api_error(exc)) from exc
+    return StrategyResult(fallback_markdown=markdown)

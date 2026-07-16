@@ -29,10 +29,20 @@ def brief() -> CampaignBrief:
 
 
 class _FakeModels:
-    """Stands in for client.models — records the call and returns a canned reply."""
+    """Stands in for client.models. Returns structured vs. markdown replies by
+    inspecting whether the call requested a response_schema."""
 
-    def __init__(self, text: str, *, raise_exc: Exception | None = None) -> None:
-        self._text = text
+    def __init__(
+        self,
+        *,
+        parsed=None,
+        text: str | None = "",
+        markdown_text: str = "## Campaign 1\n\nMD body",
+        raise_exc: Exception | None = None,
+    ) -> None:
+        self.parsed = parsed
+        self.text = text
+        self.markdown_text = markdown_text
         self._raise_exc = raise_exc
         self.calls: list[dict] = []
 
@@ -40,7 +50,36 @@ class _FakeModels:
         self.calls.append(kwargs)
         if self._raise_exc is not None:
             raise self._raise_exc
-        return SimpleNamespace(text=self._text)
+        cfg = kwargs.get("config")
+        is_structured = getattr(cfg, "response_schema", None) is not None
+        if is_structured:
+            return SimpleNamespace(parsed=self.parsed, text=self.text)
+        return SimpleNamespace(parsed=None, text=self.markdown_text)
+
+
+def _valid_result() -> strategist.StrategyResult:
+    return strategist.StrategyResult(
+        campaigns=[
+            strategist.Campaign(
+                title="Bean Quiz",
+                brief="A fun quiz.",
+                flow=strategist.Flow(
+                    opener="Hey!",
+                    branches=[
+                        strategist.Branch(
+                            reaction_label="interested",
+                            turns=[strategist.Turn(speaker="Business", text="Link.")],
+                        )
+                    ],
+                    final_cta="Tap.",
+                ),
+                ab_tests_md="*A/B*\n- A\n- B",
+                kpis=strategist.Kpis(open_rate="75%", click_through_rate="22%", conversion_rate="6%"),
+                rationale="Reasons.",
+            )
+        ],
+        recommended_next="Run it.",
+    )
 
 
 def _patch_client(monkeypatch, models: _FakeModels) -> None:
@@ -147,21 +186,40 @@ def test_build_prompt_has_no_unfilled_placeholders(brief: CampaignBrief) -> None
 # --- generate_strategy: success ------------------------------------------------
 
 
-def test_generate_strategy_returns_stripped_text(monkeypatch, brief) -> None:
-    models = _FakeModels("  ## Campaign 1\n\nBody  ")
+def test_generate_strategy_returns_parsed_structured_result(monkeypatch, brief) -> None:
+    models = _FakeModels(parsed=_valid_result())
     _patch_client(monkeypatch, models)
 
     result = generate_strategy(brief, api_key="test-key")
 
-    assert result == "## Campaign 1\n\nBody"
-    # Prompt and system instruction must reach the model.
+    assert isinstance(result, strategist.StrategyResult)
+    assert result.campaigns[0].title == "Bean Quiz"
+    assert result.fallback_markdown is None
+    # Structured request carried a response_schema, the brief, and the system prompt.
     call = models.calls[0]
     assert brief.business_type in call["contents"]
     assert call["config"].system_instruction == strategist.SYSTEM_INSTRUCTION
+    assert getattr(call["config"], "response_schema", None) is strategist.StrategyResult
+
+
+def test_generate_strategy_degrades_to_markdown_on_parse_failure(monkeypatch, brief) -> None:
+    # parsed None + non-JSON text => degrade; the markdown (second) call supplies the body.
+    models = _FakeModels(
+        parsed=None,
+        text="not json at all",
+        markdown_text="## Campaign 1\n\nDegraded body",
+    )
+    _patch_client(monkeypatch, models)
+
+    result = generate_strategy(brief, api_key="test-key")
+
+    assert result.fallback_markdown == "## Campaign 1\n\nDegraded body"
+    assert result.campaigns == []
+    assert len(models.calls) == 2  # structured attempt + markdown fallback
 
 
 def test_generate_strategy_uses_key_and_model_overrides(monkeypatch, brief) -> None:
-    models = _FakeModels("ok")
+    models = _FakeModels(parsed=_valid_result())
     _patch_client(monkeypatch, models)
 
     generate_strategy(brief, api_key="explicit-key", model="gemini-pro-latest")
@@ -171,11 +229,11 @@ def test_generate_strategy_uses_key_and_model_overrides(monkeypatch, brief) -> N
 
 def test_generate_strategy_falls_back_to_env_key(monkeypatch, brief) -> None:
     monkeypatch.setenv("GEMINI_API_KEY", "env-key")
-    models = _FakeModels("ok")
+    models = _FakeModels(parsed=_valid_result())
     _patch_client(monkeypatch, models)
 
     # Should not raise despite no api_key argument.
-    assert generate_strategy(brief) == "ok"
+    assert generate_strategy(brief).campaigns[0].title == "Bean Quiz"
 
 
 # --- generate_strategy: failure modes -----------------------------------------
@@ -188,19 +246,19 @@ def test_generate_strategy_missing_key_raises(monkeypatch, brief) -> None:
 
 
 def test_generate_strategy_empty_response_raises(monkeypatch, brief) -> None:
-    _patch_client(monkeypatch, _FakeModels("   "))
+    _patch_client(monkeypatch, _FakeModels(parsed=None, text="   "))
     with pytest.raises(RuntimeError, match="empty response"):
         generate_strategy(brief, api_key="test-key")
 
 
 def test_generate_strategy_none_response_raises(monkeypatch, brief) -> None:
-    _patch_client(monkeypatch, _FakeModels(None))
+    _patch_client(monkeypatch, _FakeModels(parsed=None, text=None))
     with pytest.raises(RuntimeError, match="empty response"):
         generate_strategy(brief, api_key="test-key")
 
 
 def test_generate_strategy_api_error_is_wrapped(monkeypatch, brief) -> None:
-    models = _FakeModels("", raise_exc=ValueError("quota exceeded"))
+    models = _FakeModels(raise_exc=ValueError("quota exceeded"))
     _patch_client(monkeypatch, models)
     with pytest.raises(RuntimeError, match="Gemini request failed"):
         generate_strategy(brief, api_key="test-key")
@@ -208,21 +266,21 @@ def test_generate_strategy_api_error_is_wrapped(monkeypatch, brief) -> None:
 
 def test_generate_strategy_maps_auth_error(monkeypatch, brief) -> None:
     exc = strategist.errors.ClientError(403, {"error": {"message": "permission denied"}})
-    _patch_client(monkeypatch, _FakeModels("", raise_exc=exc))
+    _patch_client(monkeypatch, _FakeModels(raise_exc=exc))
     with pytest.raises(RuntimeError, match="rejected the API key"):
         generate_strategy(brief, api_key="test-key")
 
 
 def test_generate_strategy_maps_rate_limit(monkeypatch, brief) -> None:
     exc = strategist.errors.ClientError(429, {"error": {"message": "quota"}})
-    _patch_client(monkeypatch, _FakeModels("", raise_exc=exc))
+    _patch_client(monkeypatch, _FakeModels(raise_exc=exc))
     with pytest.raises(RuntimeError, match="rate limit or quota"):
         generate_strategy(brief, api_key="test-key")
 
 
 def test_generate_strategy_maps_server_error(monkeypatch, brief) -> None:
     exc = strategist.errors.ServerError(503, {"error": {"message": "backend down"}})
-    _patch_client(monkeypatch, _FakeModels("", raise_exc=exc))
+    _patch_client(monkeypatch, _FakeModels(raise_exc=exc))
     with pytest.raises(RuntimeError, match="temporarily unavailable"):
         generate_strategy(brief, api_key="test-key")
 
@@ -230,7 +288,7 @@ def test_generate_strategy_maps_server_error(monkeypatch, brief) -> None:
 def test_generate_strategy_error_does_not_leak_raw_detail(monkeypatch, brief) -> None:
     # A secret-ish string in the raw exception must never reach the user message.
     exc = strategist.errors.ClientError(429, {"error": {"message": "SECRET-quota-token-abc123"}})
-    _patch_client(monkeypatch, _FakeModels("", raise_exc=exc))
+    _patch_client(monkeypatch, _FakeModels(raise_exc=exc))
     with pytest.raises(RuntimeError) as info:
         generate_strategy(brief, api_key="test-key")
     assert "SECRET-quota-token-abc123" not in str(info.value)
