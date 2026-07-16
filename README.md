@@ -20,7 +20,7 @@ product-manager-style rationale.
 
 ![Input form](docs/01-input.jpg)
 
-**A generated campaign** — conversational flow, A/B tests, and a benchmark-anchored KPI table.
+**A generated campaign** — the conversational flow rendered as an interactive chat thread, A/B tests, and benchmark-anchored KPI tiles.
 
 ![Generated campaign](docs/02-campaign.jpg)
 
