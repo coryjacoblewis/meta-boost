@@ -10,6 +10,7 @@ import os
 from dataclasses import dataclass
 from typing import Literal
 
+import httpx
 from google import genai
 from google.genai import errors, types
 from pydantic import BaseModel, Field
@@ -242,8 +243,8 @@ def _friendly_api_error(exc: Exception) -> str:
         if isinstance(exc, errors.ServerError):
             return "Gemini is temporarily unavailable. Please try again shortly."
         return "Gemini couldn't process this request. Try adjusting your brief and regenerating."
-    # httpx raises ConnectError/TimeoutException etc. for transport failures.
-    if isinstance(exc, (ConnectionError, TimeoutError)) or "timeout" in type(exc).__name__.lower():
+    # httpx.TransportError is the base for connect/read timeouts and connection errors.
+    if isinstance(exc, (ConnectionError, TimeoutError, httpx.TransportError)):
         return "Couldn't reach Gemini — check your network connection and try again."
     return "Gemini request failed unexpectedly. Please try regenerating."
 
@@ -370,7 +371,10 @@ def generate_strategy(
     except Exception as exc:  # noqa: BLE001 - surface a clean message to the UI
         raise RuntimeError(_friendly_api_error(exc)) from exc
 
-    result = response.parsed
+    # response.parsed is typed broadly by the SDK (BaseModel | dict | Enum | None);
+    # narrow it to our schema and only trust an actual StrategyResult.
+    parsed = response.parsed
+    result: StrategyResult | None = parsed if isinstance(parsed, StrategyResult) else None
     if result is None:
         text = (response.text or "").strip()
         if not text:

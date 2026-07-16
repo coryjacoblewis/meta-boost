@@ -1,0 +1,16 @@
+# Tooling config for Meta-Boost. No build system — the app runs from source;
+# this file only configures the lint (ruff) and type (mypy) gates that CI enforces.
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+# pyflakes, pycodestyle, isort, bugbear, comprehensions, pyupgrade, blind-except.
+select = ["E", "F", "I", "B", "C4", "UP", "BLE"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_ignores = true
+warn_redundant_casts = true
+ignore_missing_imports = true

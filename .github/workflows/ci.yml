@@ -23,5 +23,11 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Type check (mypy)
+        run: mypy app.py strategist.py plans.py tests
+
       - name: Run tests
         run: pytest -q

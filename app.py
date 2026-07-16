@@ -7,9 +7,8 @@ and renders actionable conversational micro-campaigns. Includes a mock freemium
 
 from __future__ import annotations
 
-from dotenv import load_dotenv
-
 import streamlit as st
+from dotenv import load_dotenv
 
 from plans import FREE_LIMIT, FREE_PLAN, PRO_PLAN, at_free_limit, usage_fraction
 from strategist import (

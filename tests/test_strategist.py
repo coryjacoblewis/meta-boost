@@ -74,7 +74,9 @@ def _valid_result() -> strategist.StrategyResult:
                     final_cta="Tap.",
                 ),
                 ab_tests_md="*A/B*\n- A\n- B",
-                kpis=strategist.Kpis(open_rate="75%", click_through_rate="22%", conversion_rate="6%"),
+                kpis=strategist.Kpis(
+                    open_rate="75%", click_through_rate="22%", conversion_rate="6%"
+                ),
                 rationale="Reasons.",
             )
         ],
@@ -141,7 +143,9 @@ def test_result_to_markdown_includes_titles_kpis_and_next() -> None:
                     final_cta="Tap to claim.",
                 ),
                 ab_tests_md="*A/B test*\n- A\n- B",
-                kpis=strategist.Kpis(open_rate="75%", click_through_rate="22%", conversion_rate="6%"),
+                kpis=strategist.Kpis(
+                    open_rate="75%", click_through_rate="22%", conversion_rate="6%"
+                ),
                 rationale="Because reasons.",
             )
         ],

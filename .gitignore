@@ -10,6 +10,11 @@ __pycache__/
 venv/
 env/
 
+# Tooling caches
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+
 # Runtime logs
 *.log
 
