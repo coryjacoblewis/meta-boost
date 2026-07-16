@@ -1,0 +1,12 @@
+# Makes `streamlit run app.py` work everywhere, including proxied web previews
+# (Google Cloud Shell, GitHub Codespaces, Gitpod) where the browser's origin
+# differs from the server and Streamlit would otherwise reject the WebSocket.
+# On a plain localhost run these settings are harmless.
+
+[server]
+headless = true
+enableCORS = false
+enableXsrfProtection = false
+
+[browser]
+gatherUsageStats = false

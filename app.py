@@ -94,6 +94,9 @@ def attempt_generation(brief: CampaignBrief) -> None:
     _run_generation(brief)
     if st.session_state.error is None:
         st.session_state.gen_count += 1
+    # Rerun so the sidebar counter/meter reflect the new count immediately
+    # (the sidebar renders earlier in the script, before this increment).
+    st.rerun()
 
 
 # --- Sidebar: plan & usage -----------------------------------------------------

@@ -10,6 +10,9 @@ __pycache__/
 venv/
 env/
 
+# Runtime logs
+*.log
+
 # OS / editor
 .DS_Store
 .idea/
