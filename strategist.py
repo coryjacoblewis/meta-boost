@@ -26,6 +26,12 @@ REQUEST_TIMEOUT_MS = int(os.getenv("GEMINI_TIMEOUT_MS", "30000"))  # 30s per req
 MAX_RETRIES = int(os.getenv("GEMINI_MAX_RETRIES", "2"))  # extra attempts after the first
 RETRY_BASE_DELAY_S = float(os.getenv("GEMINI_RETRY_BASE_DELAY_S", "0.5"))
 
+# Hard ceiling on tokens generated per call. Bounds worst-case output cost
+# regardless of how many calls slip past the app-level guards — capping the *unit*
+# is robust in a way that capping the *count* (session/daily limits) is not. The
+# default comfortably fits 3 full campaigns of structured JSON; override via env.
+MAX_OUTPUT_TOKENS = int(os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "8192"))
+
 _T = TypeVar("_T")
 
 # Selectable options surfaced by the UI.
@@ -376,6 +382,7 @@ def _generate_markdown(
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_INSTRUCTION,
                 temperature=0.8,
+                max_output_tokens=MAX_OUTPUT_TOKENS,
             ),
         )
     )
@@ -414,6 +421,7 @@ def generate_strategy(
                 config=types.GenerateContentConfig(
                     system_instruction=SYSTEM_INSTRUCTION,
                     temperature=0.8,
+                    max_output_tokens=MAX_OUTPUT_TOKENS,
                     response_mime_type="application/json",
                     response_schema=StrategyResult,
                 ),

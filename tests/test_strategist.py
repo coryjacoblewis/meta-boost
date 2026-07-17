@@ -386,3 +386,31 @@ def test_generate_strategy_sets_request_timeout(monkeypatch, brief) -> None:
     http_options = captured.get("http_options")
     assert http_options is not None
     assert http_options.timeout == strategist.REQUEST_TIMEOUT_MS
+
+
+# --- output cost cap -----------------------------------------------------------
+
+
+def test_generate_strategy_caps_output_tokens(monkeypatch, brief) -> None:
+    # The structured call must bound output tokens, so no single call can run away.
+    models = _FakeModels(parsed=_valid_result())
+    _patch_client(monkeypatch, models)
+
+    generate_strategy(brief, api_key="test-key")
+
+    assert models.calls[0]["config"].max_output_tokens == strategist.MAX_OUTPUT_TOKENS
+
+
+def test_markdown_fallback_also_caps_output_tokens(monkeypatch, brief) -> None:
+    # The degrade path makes a second full API call — it must be capped too.
+    models = _FakeModels(
+        parsed=None,
+        text="not json at all",
+        markdown_text="## Campaign 1\n\nDegraded body",
+    )
+    _patch_client(monkeypatch, models)
+
+    generate_strategy(brief, api_key="test-key")
+
+    assert len(models.calls) == 2  # structured attempt + markdown fallback
+    assert models.calls[1]["config"].max_output_tokens == strategist.MAX_OUTPUT_TOKENS

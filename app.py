@@ -76,10 +76,17 @@ st.session_state.setdefault("funnel", Funnel())
 
 
 # --- Demo cost guards ----------------------------------------------------------
-# The public demo runs on a shared API key, so two guards bound its cost:
-#   1. a global daily generation cap (below), enforced across every session, and
+# The public demo runs on a shared API key, so several guards bound its cost:
+#   1. a global daily generation cap (below), enforced across every session,
 #   2. a per-brief result cache, so repeat briefs cost neither a quota unit nor
-#      an API call. Regeneration deliberately bypasses the cache (see below).
+#      an API call (regeneration deliberately bypasses the cache, see below), and
+#   3. length caps on the free-text brief fields, so a single call's *input*
+#      tokens are bounded no matter what a user pastes in.
+
+# Max characters accepted per free-text brief field. Generous enough for a real
+# brief, tight enough to keep input tokens (and cost) bounded on every call.
+BRIEF_FIELD_MAX_CHARS = 200
+BRIEF_TEXTAREA_MAX_CHARS = 400
 
 DAILY_LIMIT_MESSAGE = (
     "The shared demo has hit its daily generation limit — this keeps the public "
@@ -383,21 +390,25 @@ with st.form("brief"):
     business_type = st.text_input(
         "Business type",
         placeholder="e.g., Online fashion boutique, Local coffee shop, B2B SaaS startup",
+        max_chars=BRIEF_FIELD_MAX_CHARS,
     )
     product_service = st.text_input(
         "Primary product or service",
         placeholder="e.g., Handmade summer dresses",
+        max_chars=BRIEF_FIELD_MAX_CHARS,
     )
     target_audience = st.text_area(
         "Target audience",
         placeholder="e.g., Gen Z, trend-conscious, urban, budget-aware",
         height=80,
+        max_chars=BRIEF_TEXTAREA_MAX_CHARS,
     )
 
     st.subheader("2. Your campaign")
     offering = st.text_input(
         "Current offering or promotion",
         placeholder="e.g., 20% off the summer collection this week",
+        max_chars=BRIEF_FIELD_MAX_CHARS,
     )
     marketing_goal = st.selectbox("Primary marketing goal", GOALS)
     channel = st.radio("Preferred Meta channel", CHANNELS, horizontal=True)
