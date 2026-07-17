@@ -7,6 +7,7 @@ and renders actionable conversational micro-campaigns. Includes a mock freemium
 
 from __future__ import annotations
 
+import threading
 from datetime import UTC, datetime
 
 import streamlit as st
@@ -98,14 +99,28 @@ def _daily_usage_store() -> DailyUsage:
     return DailyUsage(day="", count=0)
 
 
+@st.cache_resource
+def _daily_usage_lock() -> threading.Lock:
+    """Process-wide lock guarding the shared daily tally.
+
+    Streamlit serves sessions on a thread pool, so ``_consume_daily_quota`` is a
+    read-modify-write on shared mutable state that can race: two concurrent
+    generations could read the same count and both write ``count + 1``, losing an
+    increment and letting the demo quietly overspend its daily cap. One cached
+    lock (one instance per process, like the store) serializes that section.
+    """
+    return threading.Lock()
+
+
 def _consume_daily_quota() -> bool:
     """Consume one unit of the global daily allowance; False if the cap is hit."""
     store = _daily_usage_store()
-    updated, allowed = try_consume_daily(
-        DailyUsage(store.day, store.count),
-        datetime.now(UTC).date().isoformat(),
-    )
-    store.day, store.count = updated.day, updated.count
+    with _daily_usage_lock():
+        updated, allowed = try_consume_daily(
+            DailyUsage(store.day, store.count),
+            datetime.now(UTC).date().isoformat(),
+        )
+        store.day, store.count = updated.day, updated.count
     return allowed
 
 
