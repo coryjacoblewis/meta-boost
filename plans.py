@@ -20,6 +20,12 @@ FREE_LIMIT = 3  # campaign generations per session on the Free plan
 # on the maintainer's shared API key, so a per-session limit alone can't bound
 # spend (sessions reset on refresh). This caps worst-case cost regardless of how
 # many sessions hit it. Override with the DEMO_DAILY_LIMIT env var.
+#
+# Caveat: the tally lives in one process (see app.py's cached store), so "global"
+# is really "per process". It's a true global cap only on a single-container host
+# like Streamlit Community Cloud; on a multi-replica deployment each replica keeps
+# its own count, so the effective ceiling is limit x replicas. Bounding spend
+# across replicas would need shared state (e.g. Redis) — out of scope for a demo.
 DAILY_GLOBAL_LIMIT = int(os.getenv("DEMO_DAILY_LIMIT", "200"))
 
 

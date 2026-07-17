@@ -222,3 +222,7 @@ funnel and the value framing, not to charge anyone.
 - Visual flowchart of the conversational tree.
 - Wire the Pro tier to real billing (Stripe) + the export/tracking features it promises.
 - Deeper Meta integration (Ads API, real performance tracking).
+
+## License
+
+Released under the [MIT License](LICENSE).
