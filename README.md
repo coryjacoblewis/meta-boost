@@ -120,8 +120,9 @@ pytest
 
 Coverage: prompt construction (every brief field lands, no unfilled placeholders),
 the success path (key/model overrides, `.env` fallback), all three failure
-modes the UI relies on (missing key, empty response, wrapped API error), and the
-freemium gate logic (paywall trigger, Pro bypass, usage meter) in `plans.py`.
+modes the UI relies on (missing key, empty response, wrapped API error), the
+freemium gate logic (paywall trigger, Pro bypass, usage meter), and the global
+daily demo guard (cap enforcement + UTC day rollover) in `plans.py`.
 
 ### Configuration
 
@@ -132,6 +133,24 @@ freemium gate logic (paywall trigger, Pro bypass, usage meter) in `plans.py`.
 | `GEMINI_TIMEOUT_MS` | `30000` | Per-request timeout (ms) so a slow call can't hang the UI. |
 | `GEMINI_MAX_RETRIES` | `2` | Extra attempts on *transient* faults (5xx / network). 429 and auth errors are never retried. |
 | `GEMINI_RETRY_BASE_DELAY_S` | `0.5` | Base for the exponential backoff between retries (0.5s, 1s, …). |
+| `DEMO_DAILY_LIMIT` | `200` | Global cap on generations/day across all sessions, so the public demo's shared key can't be run up. See [Demo cost safeguards](#demo-cost-safeguards). |
+
+## Demo cost safeguards
+
+The public demo runs on a shared API key, so two guards bound its spend:
+
+- **Global daily cap** (`DAILY_GLOBAL_LIMIT` in `plans.py`, overridable via
+  `DEMO_DAILY_LIMIT`): total generations/day across *all* sessions. A per-session
+  limit alone can't bound cost because sessions reset on refresh, so this cap is
+  process-wide and rolls over each UTC day. When it's hit, users see a friendly
+  "try again tomorrow / run it locally" message instead of another API call.
+- **Per-brief result cache**: identical briefs return a cached result — no quota
+  unit and no API call. "Regenerate" deliberately bypasses the cache so it always
+  produces a fresh variation.
+
+The cap-and-rollover logic is pure and unit-tested in `plans.py`
+(`try_consume_daily`); `app.py` holds the shared counter in `st.cache_resource`
+and the result cache in `st.cache_data`.
 
 ## Project structure
 

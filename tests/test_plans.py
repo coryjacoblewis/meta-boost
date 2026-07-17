@@ -9,7 +9,15 @@ from __future__ import annotations
 
 import pytest
 
-from plans import FREE_LIMIT, FREE_PLAN, PRO_PLAN, at_free_limit, usage_fraction
+from plans import (
+    FREE_LIMIT,
+    FREE_PLAN,
+    PRO_PLAN,
+    DailyUsage,
+    at_free_limit,
+    try_consume_daily,
+    usage_fraction,
+)
 
 # --- at_free_limit -------------------------------------------------------------
 
@@ -58,3 +66,39 @@ def test_usage_fraction_handles_nonpositive_limit() -> None:
 
 def test_usage_fraction_floors_negative_usage() -> None:
     assert usage_fraction(-2, limit=3) == 0.0
+
+
+# --- try_consume_daily (global demo guard) -------------------------------------
+
+
+def test_daily_guard_allows_and_increments_until_limit() -> None:
+    usage = DailyUsage(day="2026-07-17", count=0)
+    usage, ok = try_consume_daily(usage, "2026-07-17", limit=2)
+    assert ok is True and usage.count == 1
+    usage, ok = try_consume_daily(usage, "2026-07-17", limit=2)
+    assert ok is True and usage.count == 2
+    usage, ok = try_consume_daily(usage, "2026-07-17", limit=2)
+    assert ok is False and usage.count == 2  # capped; count untouched
+
+
+def test_daily_guard_blocks_immediately_when_already_full() -> None:
+    usage = DailyUsage(day="2026-07-17", count=2)
+    usage, ok = try_consume_daily(usage, "2026-07-17", limit=2)
+    assert ok is False
+    assert usage.count == 2
+
+
+def test_daily_guard_rolls_over_at_new_day() -> None:
+    usage = DailyUsage(day="2026-07-17", count=99)
+    usage, ok = try_consume_daily(usage, "2026-07-18", limit=2)
+    assert ok is True
+    assert usage.day == "2026-07-18"
+    assert usage.count == 1  # fresh day starts from zero, then this generation
+
+
+def test_daily_guard_first_ever_generation_starts_the_day() -> None:
+    usage = DailyUsage(day="", count=0)
+    usage, ok = try_consume_daily(usage, "2026-07-17", limit=200)
+    assert ok is True
+    assert usage.day == "2026-07-17"
+    assert usage.count == 1

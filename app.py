@@ -7,10 +7,20 @@ and renders actionable conversational micro-campaigns. Includes a mock freemium
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import streamlit as st
 from dotenv import load_dotenv
 
-from plans import FREE_LIMIT, FREE_PLAN, PRO_PLAN, at_free_limit, usage_fraction
+from plans import (
+    FREE_LIMIT,
+    FREE_PLAN,
+    PRO_PLAN,
+    DailyUsage,
+    at_free_limit,
+    try_consume_daily,
+    usage_fraction,
+)
 from strategist import (
     CHANNELS,
     GOALS,
@@ -56,13 +66,88 @@ st.session_state.setdefault("gen_count", 0)
 st.session_state.setdefault("result", None)
 st.session_state.setdefault("error", None)
 st.session_state.setdefault("current_brief", None)
+st.session_state.setdefault("regen_nonce", 0)
 
 
-def _run_generation(brief: CampaignBrief) -> None:
-    """Generate a strategy and store the result (or error) in session state."""
+# --- Demo cost guards ----------------------------------------------------------
+# The public demo runs on a shared API key, so two guards bound its cost:
+#   1. a global daily generation cap (below), enforced across every session, and
+#   2. a per-brief result cache, so repeat briefs cost neither a quota unit nor
+#      an API call. Regeneration deliberately bypasses the cache (see below).
+
+DAILY_LIMIT_MESSAGE = (
+    "The shared demo has hit its daily generation limit — this keeps the public "
+    "demo's API costs bounded. Please try again tomorrow, or run Meta-Boost "
+    "locally with your own Gemini key (see the README)."
+)
+
+
+@st.cache_resource
+def _daily_usage_store() -> DailyUsage:
+    """Process-wide daily tally, shared across every session of this app.
+
+    ``st.cache_resource`` returns one instance for the whole server process, so
+    all sessions increment the same counter. It resets on cold start — acceptable
+    for a demo guard whose only job is to bound worst-case spend.
+    """
+    return DailyUsage(day="", count=0)
+
+
+def _consume_daily_quota() -> bool:
+    """Consume one unit of the global daily allowance; False if the cap is hit."""
+    store = _daily_usage_store()
+    updated, allowed = try_consume_daily(
+        DailyUsage(store.day, store.count),
+        datetime.now(UTC).date().isoformat(),
+    )
+    store.day, store.count = updated.day, updated.count
+    return allowed
+
+
+def _brief_cache_key(brief: CampaignBrief) -> str:
+    """Stable key over every brief field, so identical briefs share a cache slot."""
+    return "|".join(
+        [
+            brief.business_type,
+            brief.product_service,
+            brief.target_audience,
+            brief.offering,
+            brief.marketing_goal,
+            brief.channel,
+            brief.tone,
+        ]
+    )
+
+
+@st.cache_data(show_spinner=False, ttl=3600, max_entries=256)
+def _generate_metered(_brief: CampaignBrief, cache_key: str) -> StrategyResult:
+    """Cache-miss generation path, with the global daily guard applied.
+
+    Streamlit skips this body entirely on a cache hit, so a repeated brief costs
+    neither a daily unit nor an API call — the guard and the model are only
+    reached on a genuine miss. ``_brief`` is underscore-prefixed so Streamlit
+    doesn't hash the dataclass; ``cache_key`` is the real key (stable per brief
+    for Generate, unique per click for Regenerate). Exceptions aren't cached, so a
+    daily-cap rejection never sticks.
+    """
+    if not _consume_daily_quota():
+        raise RuntimeError(DAILY_LIMIT_MESSAGE)
+    return generate_strategy(_brief)
+
+
+def _run_generation(brief: CampaignBrief, *, regenerate: bool = False) -> None:
+    """Generate a strategy and store the result (or error) in session state.
+
+    A fresh Generate is cache-first (repeat briefs are free); Regenerate busts the
+    cache via a per-click nonce so it always yields a new variation and is metered.
+    """
+    cache_key = _brief_cache_key(brief)
+    if regenerate:
+        st.session_state.regen_nonce += 1
+        cache_key = f"{cache_key}#regen{st.session_state.regen_nonce}"
     with st.spinner("Strategizing your micro-campaigns…"):
         try:
-            st.session_state.result = generate_strategy(brief)
+            st.session_state.result = _generate_metered(brief, cache_key)
             st.session_state.error = None
         except RuntimeError as exc:
             st.session_state.result = None
@@ -190,12 +275,12 @@ def upgrade_dialog() -> None:
     )
 
 
-def attempt_generation(brief: CampaignBrief) -> None:
+def attempt_generation(brief: CampaignBrief, *, regenerate: bool = False) -> None:
     """Gate on the free limit, otherwise generate and count the usage."""
     if at_free_limit(st.session_state.plan, st.session_state.gen_count):
         upgrade_dialog()
         return
-    _run_generation(brief)
+    _run_generation(brief, regenerate=regenerate)
     if st.session_state.error is None:
         st.session_state.gen_count += 1
     # Rerun so the sidebar counter/meter reflect the new count immediately
@@ -293,7 +378,7 @@ if st.session_state.get("result"):
     col_a, col_b = st.columns(2)
     with col_a:
         if st.button("🔄 Regenerate", use_container_width=True):
-            attempt_generation(st.session_state.current_brief)
+            attempt_generation(st.session_state.current_brief, regenerate=True)
     with col_b:
         st.download_button(
             "⬇️ Download as Markdown",
