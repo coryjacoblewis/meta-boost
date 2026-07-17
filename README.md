@@ -10,9 +10,7 @@ _Unlock personalized conversational marketing on Meta platforms, instantly._
 Meta-Boost is a web app that turns a short business brief into ready-to-send
 conversational micro-campaigns for Meta's messaging platforms (WhatsApp Business,
 Messenger, Instagram DMs). It acts as a strategic co-pilot for small and medium
-businesses that don't have a marketing team — generating campaign concepts, multi-turn
-conversational flows, A/B test variations, and simulated KPI predictions with
-product-manager-style rationale.
+businesses that don't have a marketing team.
 
 ## Demo
 
@@ -48,7 +46,7 @@ delivers **expertise on demand**: a full, actionable campaign blueprint in under
 
 ## Skills demonstrated
 
-Meta-Boost is scoped to showcase the competencies for a **Business Agents Growth PM** role.
+A compact demonstration of product, growth, and applied-AI competencies — each mapped to where it lives in the code.
 
 | Competency | How Meta-Boost demonstrates it | Where |
 | --- | --- | --- |
@@ -118,13 +116,9 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-Coverage: prompt construction (every brief field lands, no unfilled placeholders),
-the success path (key/model overrides, `.env` fallback), all three failure
-modes the UI relies on (missing key, empty response, wrapped API error), the
-freemium gate logic (paywall trigger, Pro bypass, usage meter) and the global
-daily demo guard (cap enforcement + UTC day rollover) in `plans.py`, and the
-funnel analytics (event log format, emission, success-rate derivation) in
-`analytics.py`.
+Coverage spans prompt construction, the success path, the three API failure
+modes the UI handles, the freemium gate and global daily demo guard (`plans.py`),
+and the funnel analytics (`analytics.py`).
 
 ### Configuration
 
@@ -182,7 +176,7 @@ meta-boost-MVP/
 ├── .github/workflows/  # CI: runs the test suite on every push/PR
 ├── requirements.txt
 ├── .env.example        # copy to .env and add your key
-├── PROJECT_CONCEPT.md  # full product concept & PM framing
+├── PROJECT_CONCEPT.md  # design notes: target users, I/O contract, build risks
 ├── requirements-dev.txt # test dependencies (pytest)
 ├── tests/              # unit tests (mocked Gemini client, no key needed)
 ├── samples/            # example generated campaigns (3 industries)
