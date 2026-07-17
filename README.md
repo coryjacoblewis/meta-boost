@@ -130,6 +130,9 @@ daily demo guard (cap enforcement + UTC day rollover) in `plans.py`.
 | --- | --- | --- |
 | `GEMINI_API_KEY` | _(required)_ | Your Google Gemini API key. |
 | `GEMINI_MODEL` | `gemini-flash-latest` | Any model your key supports (e.g. `gemini-pro-latest` for deeper reasoning). |
+| `GEMINI_TIMEOUT_MS` | `30000` | Per-request timeout (ms) so a slow call can't hang the UI. |
+| `GEMINI_MAX_RETRIES` | `2` | Extra attempts on *transient* faults (5xx / network). 429 and auth errors are never retried. |
+| `GEMINI_RETRY_BASE_DELAY_S` | `0.5` | Base for the exponential backoff between retries (0.5s, 1s, …). |
 | `DEMO_DAILY_LIMIT` | `200` | Global cap on generations/day across all sessions, so the public demo's shared key can't be run up. See [Demo cost safeguards](#demo-cost-safeguards). |
 
 ## Demo cost safeguards
