@@ -14,3 +14,30 @@ headless = true
 
 [browser]
 gatherUsageStats = false
+
+# --- Brand theme ---------------------------------------------------------------
+# Meta-Boost's visual identity: a confident Meta-family blue, a Poppins/Inter
+# type pairing, and soft rounded surfaces. Fonts load from Google Fonts via the
+# "Family:URL" syntax Streamlit expects, so the look is self-contained.
+[theme]
+base = "light"
+primaryColor = "#1C6BF0"                 # brand blue — buttons, accents, focus
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F4F6FB"     # form fields, chat bubbles, info blocks
+textColor = "#0F1B2D"                    # deep navy-charcoal, softer than black
+linkColor = "#1C6BF0"
+borderColor = "#E2E8F2"
+showWidgetBorder = true                  # outlined inputs read more "product"
+baseRadius = "12px"
+buttonRadius = "10px"
+baseFontSize = 15
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+headingFont = "Poppins:https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&display=swap"
+headingFontWeights = [700, 600, 600, 600, 600, 600]
+linkUnderline = false
+metricValueFontSize = "2.2rem"           # make the KPI tiles a focal point
+metricValueFontWeight = 700
+
+[theme.sidebar]
+backgroundColor = "#F7F9FC"
+borderColor = "#E2E8F2"
