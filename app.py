@@ -15,6 +15,7 @@ from strategist import (
     CHANNELS,
     GOALS,
     TONES,
+    Campaign,
     CampaignBrief,
     Flow,
     StrategyResult,
@@ -60,28 +61,74 @@ def render_flow(flow: Flow) -> None:
         st.markdown(f"**Final CTA:** {flow.final_cta}")
 
 
+def render_campaign(campaign: Campaign) -> None:
+    """Render one campaign: brief, conversational flow, KPI tiles, A/B tests."""
+    st.header(campaign.title)
+    st.markdown(campaign.brief)
+    st.markdown("**Conversational flow**")
+    render_flow(campaign.flow)
+    st.markdown("**Simulated KPI predictions** *(plausible estimates, not guarantees)*")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Open rate", campaign.kpis.open_rate)
+    c2.metric("Click-through", campaign.kpis.click_through_rate)
+    c3.metric("Conversion", campaign.kpis.conversion_rate)
+    st.markdown(campaign.ab_tests_md)
+    st.markdown(f"**PM rationale:** {campaign.rationale}")
+
+
 def render_result(result: StrategyResult) -> None:
-    """Render a structured result, or the degraded Markdown view."""
+    """Render a structured result, or the degraded Markdown view.
+
+    Multiple campaigns are split into tabs so they can be compared without an
+    endless scroll; a single campaign renders inline.
+    """
     if result.fallback_markdown is not None:
         st.caption("Showing the basic view for this result.")
         st.markdown(result.fallback_markdown)
         return
-    for campaign in result.campaigns:
-        st.header(campaign.title)
-        st.markdown(campaign.brief)
-        st.markdown("**Conversational flow**")
-        render_flow(campaign.flow)
-        st.markdown("**Simulated KPI predictions** *(plausible estimates, not guarantees)*")
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Open rate", campaign.kpis.open_rate)
-        c2.metric("Click-through", campaign.kpis.click_through_rate)
-        c3.metric("Conversion", campaign.kpis.conversion_rate)
-        st.markdown(campaign.ab_tests_md)
-        st.markdown(f"**PM rationale:** {campaign.rationale}")
-        st.divider()
+    campaigns = result.campaigns
+    if len(campaigns) > 1:
+        labels = [f"Campaign {i}" for i in range(1, len(campaigns) + 1)]
+        for tab, campaign in zip(st.tabs(labels), campaigns, strict=True):
+            with tab:
+                render_campaign(campaign)
+    elif campaigns:
+        render_campaign(campaigns[0])
     if result.recommended_next:
+        st.divider()
         st.subheader("Recommended next step")
         st.markdown(result.recommended_next)
+
+
+def render_empty_state() -> None:
+    """Preview what a generation produces, shown before the first run."""
+    st.divider()
+    st.markdown("#### What you'll get")
+    st.caption("2–3 tailored micro-campaigns in under a minute — each one includes:")
+    c1, c2, c3 = st.columns(3)
+    c1.markdown(
+        "💬 **Conversational flows**\n\n"
+        "Multi-turn, branching chats ready to send on your channel."
+    )
+    c2.markdown(
+        "🧪 **A/B tests**\n\nTwo variations per campaign, each naming the lever it tests."
+    )
+    c3.markdown(
+        "📈 **KPI estimates**\n\nBenchmark-anchored open, click & conversion projections."
+    )
+    with st.expander("Preview a sample flow"):
+        with st.chat_message("Business", avatar="🏪"):
+            st.markdown(
+                "Hey there! ☕ Quick question — still drinking supermarket blend "
+                "while working from home?"
+            )
+        with st.chat_message("User", avatar="👤"):
+            st.markdown("Tell me more about the beans!")
+        with st.chat_message("Business", avatar="🏪"):
+            st.markdown(
+                "We roast single-origin beans weekly. Want to find your perfect match? "
+                "**Take the 30-sec quiz — 30% off your first month.**"
+            )
 
 
 @st.dialog("⚡ Upgrade to Meta-Boost Pro")
@@ -249,3 +296,7 @@ if st.session_state.get("result"):
         "⚠️ KPI figures are AI-generated plausible planning estimates, not guarantees "
         "or real-time predictions."
     )
+
+# Before the first generation, preview what the tool produces.
+if not st.session_state.get("result") and not st.session_state.get("error"):
+    render_empty_state()
