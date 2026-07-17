@@ -121,8 +121,10 @@ pytest
 Coverage: prompt construction (every brief field lands, no unfilled placeholders),
 the success path (key/model overrides, `.env` fallback), all three failure
 modes the UI relies on (missing key, empty response, wrapped API error), the
-freemium gate logic (paywall trigger, Pro bypass, usage meter), and the global
-daily demo guard (cap enforcement + UTC day rollover) in `plans.py`.
+freemium gate logic (paywall trigger, Pro bypass, usage meter) and the global
+daily demo guard (cap enforcement + UTC day rollover) in `plans.py`, and the
+funnel analytics (event log format, emission, success-rate derivation) in
+`analytics.py`.
 
 ### Configuration
 
@@ -152,13 +154,31 @@ The cap-and-rollover logic is pure and unit-tested in `plans.py`
 (`try_consume_daily`); `app.py` holds the shared counter in `st.cache_resource`
 and the result cache in `st.cache_data`.
 
+## Funnel analytics
+
+Meta-Boost instruments its own growth funnel — two self-contained surfaces, no DB
+and no external provider (`analytics.py`):
+
+- **Structured event logs** — one compact JSON line per funnel event
+  (`form_submit` → `generate` → `result_shown`, plus `upgrade_click` /
+  `upgrade_confirm`), emitted through the stdlib logger so they show up in
+  `streamlit run` output and Streamlit Cloud's log viewer for aggregate analysis.
+- **A live session funnel** in the sidebar — briefs, generations, results, upgrade
+  clicks, and the generation success rate for the current session.
+
+Only *categorical* fields (goal, channel, tone) are logged — never the free-text
+business description — so the logs stay privacy-safe. The event formatting and
+funnel derivation are pure and unit-tested; `app.py` owns the session-state tally
+and fires events at each funnel step.
+
 ## Project structure
 
 ```
 meta-boost-MVP/
 ├── app.py              # Streamlit UI (form, freemium gate, upgrade modal)
 ├── strategist.py       # Gemini strategy engine + prompt
-├── plans.py            # Freemium gate logic (pure, UI-independent, unit-tested)
+├── plans.py            # Freemium gate + demo cost guard (pure, unit-tested)
+├── analytics.py        # Funnel events + session tally (pure, unit-tested)
 ├── .github/workflows/  # CI: runs the test suite on every push/PR
 ├── requirements.txt
 ├── .env.example        # copy to .env and add your key
