@@ -27,7 +27,7 @@ jobs:
         run: ruff check .
 
       - name: Type check (mypy)
-        run: mypy app.py strategist.py plans.py tests
+        run: mypy app.py strategist.py plans.py analytics.py tests
 
       - name: Run tests
         run: pytest -q

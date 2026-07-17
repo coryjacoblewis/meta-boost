@@ -12,6 +12,8 @@ from datetime import UTC, datetime
 import streamlit as st
 from dotenv import load_dotenv
 
+import analytics
+from analytics import Funnel
 from plans import (
     FREE_LIMIT,
     FREE_PLAN,
@@ -61,12 +63,15 @@ st.markdown(
 
 # --- Session defaults ----------------------------------------------------------
 
+analytics.configure()
+
 st.session_state.setdefault("plan", FREE_PLAN)
 st.session_state.setdefault("gen_count", 0)
 st.session_state.setdefault("result", None)
 st.session_state.setdefault("error", None)
 st.session_state.setdefault("current_brief", None)
 st.session_state.setdefault("regen_nonce", 0)
+st.session_state.setdefault("funnel", Funnel())
 
 
 # --- Demo cost guards ----------------------------------------------------------
@@ -267,6 +272,7 @@ def upgrade_dialog() -> None:
     st.divider()
     if st.button("Start Pro — $19/mo", type="primary", use_container_width=True):
         st.session_state.plan = PRO_PLAN
+        analytics.log_event(analytics.EVENT_UPGRADE_CONFIRM)
         st.toast("Welcome to Pro! (mock upgrade — billing isn't wired up in this MVP)")
         st.rerun()
     st.caption(
@@ -275,14 +281,36 @@ def upgrade_dialog() -> None:
     )
 
 
+def _open_upgrade_dialog(source: str) -> None:
+    """Record the upgrade-intent event, then show the dialog."""
+    st.session_state.funnel.upgrade_clicks += 1
+    analytics.log_event(analytics.EVENT_UPGRADE_CLICK, source=source)
+    upgrade_dialog()
+
+
 def attempt_generation(brief: CampaignBrief, *, regenerate: bool = False) -> None:
     """Gate on the free limit, otherwise generate and count the usage."""
     if at_free_limit(st.session_state.plan, st.session_state.gen_count):
-        upgrade_dialog()
+        _open_upgrade_dialog("paywall")
         return
+    st.session_state.funnel.generations += 1
+    analytics.log_event(
+        analytics.EVENT_GENERATE,
+        regenerate=regenerate,
+        goal=brief.marketing_goal,
+        channel=brief.channel,
+        tone=brief.tone,
+    )
     _run_generation(brief, regenerate=regenerate)
     if st.session_state.error is None:
         st.session_state.gen_count += 1
+        st.session_state.funnel.results += 1
+        result = st.session_state.result
+        analytics.log_event(
+            analytics.EVENT_RESULT_SHOWN,
+            campaigns=len(result.campaigns) if result else 0,
+            degraded=bool(result and result.fallback_markdown is not None),
+        )
     # Rerun so the sidebar counter/meter reflect the new count immediately
     # (the sidebar renders earlier in the script, before this increment).
     st.rerun()
@@ -303,11 +331,29 @@ with st.sidebar:
         st.info(f"**Free** — {used}/{FREE_LIMIT} generations used")
         st.progress(usage_fraction(used))
         if st.button("⚡ Upgrade to Pro", type="primary", use_container_width=True):
-            upgrade_dialog()
+            _open_upgrade_dialog("sidebar")
         if used > 0:
             if st.button("Reset usage (demo)", use_container_width=True):
                 st.session_state.gen_count = 0
                 st.rerun()
+
+    # --- Session funnel ---------------------------------------------------------
+    # A tiny live view of this session's funnel. The same events are emitted as
+    # structured logs (see analytics.py) for offline/aggregate analysis.
+    funnel = st.session_state.funnel
+    if funnel.form_submits or funnel.generations:
+        st.divider()
+        st.markdown("### This session")
+        fc1, fc2 = st.columns(2)
+        fc1.metric("Briefs", funnel.form_submits)
+        fc2.metric("Generations", funnel.generations)
+        fc3, fc4 = st.columns(2)
+        fc3.metric("Results", funnel.results)
+        fc4.metric("Upgrade clicks", funnel.upgrade_clicks)
+        rate = analytics.success_rate(funnel)
+        if rate is not None:
+            st.caption(f"Generation success rate: {rate:.0%}")
+        st.caption("These events are also emitted as structured logs.")
 
 # --- Header --------------------------------------------------------------------
 
@@ -361,6 +407,14 @@ if submitted:
             target_audience=target_audience.strip(),
             offering=offering.strip(),
             marketing_goal=marketing_goal,
+            channel=channel,
+            tone=tone,
+        )
+        st.session_state.funnel.form_submits += 1
+        # Log only categorical selections — never the free-text business fields.
+        analytics.log_event(
+            analytics.EVENT_FORM_SUBMIT,
+            goal=marketing_goal,
             channel=channel,
             tone=tone,
         )
