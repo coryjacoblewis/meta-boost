@@ -14,3 +14,13 @@ python_version = "3.11"
 warn_unused_ignores = true
 warn_redundant_casts = true
 ignore_missing_imports = true
+# Apply per-module follow_imports settings to .pyi stubs too (needed for the
+# numpy override below to actually skip numpy's stub).
+follow_imports_for_stubs = true
+
+# numpy arrives transitively (streamlit -> numpy) and ships PEP 695 `type` stubs
+# that only parse under a 3.12 target. We never use numpy directly, so don't
+# follow into it rather than bumping the whole project's mypy target.
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*"]
+follow_imports = "skip"
