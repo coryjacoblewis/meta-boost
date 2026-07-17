@@ -27,6 +27,28 @@ load_dotenv()
 
 st.set_page_config(page_title="Meta-Boost", page_icon="🚀", layout="centered")
 
+# --- Responsive columns --------------------------------------------------------
+# Streamlit's st.columns() shrinks rather than stacks on narrow viewports, which
+# crushes the 3-up KPI tiles and feature cards on phones. There's no native
+# breakpoint API, so make column rows wrap below a phone-ish width: each column
+# takes a full line instead of being squeezed. Applies to every st.columns() row.
+st.markdown(
+    """
+    <style>
+    @media (max-width: 640px) {
+        [data-testid="stHorizontalBlock"] {
+            flex-wrap: wrap;
+        }
+        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+            flex: 1 1 100% !important;
+            min-width: 100% !important;
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # --- Session defaults ----------------------------------------------------------
 
 st.session_state.setdefault("plan", FREE_PLAN)
