@@ -11,7 +11,6 @@ import pytest
 
 from plans import FREE_LIMIT, FREE_PLAN, PRO_PLAN, at_free_limit, usage_fraction
 
-
 # --- at_free_limit -------------------------------------------------------------
 
 
