@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import httpx
 import pytest
 
 import strategist
@@ -84,13 +85,21 @@ def _valid_result() -> strategist.StrategyResult:
     )
 
 
-def _patch_client(monkeypatch, models: _FakeModels) -> None:
-    """Replace genai.Client so no network call happens."""
-    monkeypatch.setattr(
-        strategist.genai,
-        "Client",
-        lambda api_key=None: SimpleNamespace(models=models),
-    )
+def _patch_client(
+    monkeypatch, models: object, captured: dict | None = None
+) -> None:
+    """Replace genai.Client so no network call happens.
+
+    Passing ``captured`` records the kwargs the client was built with (e.g.
+    ``http_options``), so tests can assert on client configuration.
+    """
+
+    def _factory(**kwargs):
+        if captured is not None:
+            captured.update(kwargs)
+        return SimpleNamespace(models=models)
+
+    monkeypatch.setattr(strategist.genai, "Client", _factory)
 
 
 # --- models --------------------------------------------------------------------
@@ -296,3 +305,84 @@ def test_generate_strategy_error_does_not_leak_raw_detail(monkeypatch, brief) ->
     with pytest.raises(RuntimeError) as info:
         generate_strategy(brief, api_key="test-key")
     assert "SECRET-quota-token-abc123" not in str(info.value)
+
+
+# --- timeout & retry -----------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _no_real_sleep(monkeypatch) -> None:
+    """Make retry backoff instant so the suite stays fast."""
+    monkeypatch.setattr(strategist.time, "sleep", lambda _s: None)
+
+
+class _SequencedModels:
+    """Raises each queued exception in turn, then returns a structured success."""
+
+    def __init__(self, *, failures: list[Exception], parsed) -> None:
+        self._failures = list(failures)
+        self._parsed = parsed
+        self.calls: list[dict] = []
+
+    def generate_content(self, **kwargs):
+        self.calls.append(kwargs)
+        if self._failures:
+            raise self._failures.pop(0)
+        return SimpleNamespace(parsed=self._parsed, text="")
+
+
+def test_generate_strategy_retries_transient_then_succeeds(monkeypatch, brief) -> None:
+    # One transient 5xx, then success — the caller should never see the blip.
+    server_err = strategist.errors.ServerError(503, {"error": {"message": "backend down"}})
+    models = _SequencedModels(failures=[server_err], parsed=_valid_result())
+    _patch_client(monkeypatch, models)
+
+    result = generate_strategy(brief, api_key="test-key")
+
+    assert result.campaigns[0].title == "Bean Quiz"
+    assert len(models.calls) == 2  # first attempt failed, retry succeeded
+
+
+def test_generate_strategy_gives_up_after_max_retries(monkeypatch, brief) -> None:
+    server_err = strategist.errors.ServerError(503, {"error": {"message": "still down"}})
+    models = _FakeModels(raise_exc=server_err)
+    _patch_client(monkeypatch, models)
+
+    with pytest.raises(RuntimeError, match="temporarily unavailable"):
+        generate_strategy(brief, api_key="test-key")
+    # Initial attempt + MAX_RETRIES extra attempts, all exhausted.
+    assert len(models.calls) == strategist.MAX_RETRIES + 1
+
+
+def test_generate_strategy_does_not_retry_rate_limit(monkeypatch, brief) -> None:
+    # 429 must NOT be retried — retrying quota errors just burns more quota.
+    rate_err = strategist.errors.ClientError(429, {"error": {"message": "quota"}})
+    models = _FakeModels(raise_exc=rate_err)
+    _patch_client(monkeypatch, models)
+
+    with pytest.raises(RuntimeError, match="rate limit or quota"):
+        generate_strategy(brief, api_key="test-key")
+    assert len(models.calls) == 1  # tried once, no retries
+
+
+def test_generate_strategy_retries_network_faults(monkeypatch, brief) -> None:
+    # A transport-level timeout is transient and should be retried.
+    timeout = httpx.ConnectTimeout("timed out")
+    models = _SequencedModels(failures=[timeout], parsed=_valid_result())
+    _patch_client(monkeypatch, models)
+
+    result = generate_strategy(brief, api_key="test-key")
+
+    assert result.campaigns[0].title == "Bean Quiz"
+    assert len(models.calls) == 2
+
+
+def test_generate_strategy_sets_request_timeout(monkeypatch, brief) -> None:
+    captured: dict = {}
+    _patch_client(monkeypatch, _FakeModels(parsed=_valid_result()), captured)
+
+    generate_strategy(brief, api_key="test-key")
+
+    http_options = captured.get("http_options")
+    assert http_options is not None
+    assert http_options.timeout == strategist.REQUEST_TIMEOUT_MS

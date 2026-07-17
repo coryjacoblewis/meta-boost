@@ -7,8 +7,10 @@ micro-campaign strategies (flows, A/B tests, simulated KPIs with PM-style ration
 from __future__ import annotations
 
 import os
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, TypeVar
 
 import httpx
 from google import genai
@@ -16,6 +18,15 @@ from google.genai import errors, types
 from pydantic import BaseModel, Field
 
 DEFAULT_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-latest")
+
+# --- Request resilience --------------------------------------------------------
+# Bound how long a single call may hang, and retry only *transient* faults so a
+# blip doesn't surface as a hard error. All overridable via env.
+REQUEST_TIMEOUT_MS = int(os.getenv("GEMINI_TIMEOUT_MS", "30000"))  # 30s per request
+MAX_RETRIES = int(os.getenv("GEMINI_MAX_RETRIES", "2"))  # extra attempts after the first
+RETRY_BASE_DELAY_S = float(os.getenv("GEMINI_RETRY_BASE_DELAY_S", "0.5"))
+
+_T = TypeVar("_T")
 
 # Selectable options surfaced by the UI.
 CHANNELS = ["WhatsApp Business", "Messenger", "Instagram DMs"]
@@ -249,6 +260,39 @@ def _friendly_api_error(exc: Exception) -> str:
     return "Gemini request failed unexpectedly. Please try regenerating."
 
 
+def _is_transient(exc: Exception) -> bool:
+    """Whether a failure is worth retrying.
+
+    Transient = 5xx server errors and network/timeout faults. Deliberately
+    excludes 4xx client errors (auth, bad request) and 429 rate-limit/quota —
+    retrying those either can't help or just burns more quota, and the friendly
+    message already tells the user to wait.
+    """
+    if isinstance(exc, errors.ServerError):
+        return True
+    if isinstance(exc, errors.APIError):  # other API errors (4xx, 429): don't retry
+        return False
+    # httpx.TransportError covers connect/read timeouts and connection resets.
+    return isinstance(exc, (ConnectionError, TimeoutError, httpx.TransportError))
+
+
+def _with_retries(call: Callable[[], _T]) -> _T:
+    """Run ``call``, retrying transient failures with exponential backoff.
+
+    Makes up to ``MAX_RETRIES`` extra attempts (0.5s, 1s, …) on transient errors;
+    non-transient errors and the final failure propagate to the caller unchanged.
+    """
+    attempt = 0
+    while True:
+        try:
+            return call()
+        except Exception as exc:  # noqa: BLE001 - classify, then retry or re-raise
+            if attempt >= MAX_RETRIES or not _is_transient(exc):
+                raise
+            time.sleep(RETRY_BASE_DELAY_S * (2**attempt))
+            attempt += 1
+
+
 def _flow_to_markdown(flow: Flow) -> str:
     lines = ["**Conversational flow**", "", f"**Business:** {flow.opener}", ""]
     for branch in flow.branches:
@@ -325,13 +369,15 @@ def _generate_markdown(
     brief: CampaignBrief, *, client, model: str | None = None
 ) -> str:
     """Fallback generation: the proven Markdown path, returned as a raw string."""
-    response = client.models.generate_content(
-        model=model or DEFAULT_MODEL,
-        contents=build_markdown_prompt(brief),
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_INSTRUCTION,
-            temperature=0.8,
-        ),
+    response = _with_retries(
+        lambda: client.models.generate_content(
+            model=model or DEFAULT_MODEL,
+            contents=build_markdown_prompt(brief),
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_INSTRUCTION,
+                temperature=0.8,
+            ),
+        )
     )
     text = (response.text or "").strip()
     if not text:
@@ -355,18 +401,23 @@ def generate_strategy(
             "No Gemini API key found. Set GEMINI_API_KEY in your .env file."
         )
 
-    client = genai.Client(api_key=key)
+    client = genai.Client(
+        api_key=key,
+        http_options=types.HttpOptions(timeout=REQUEST_TIMEOUT_MS),
+    )
 
     try:
-        response = client.models.generate_content(
-            model=model or DEFAULT_MODEL,
-            contents=build_prompt(brief),
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_INSTRUCTION,
-                temperature=0.8,
-                response_mime_type="application/json",
-                response_schema=StrategyResult,
-            ),
+        response = _with_retries(
+            lambda: client.models.generate_content(
+                model=model or DEFAULT_MODEL,
+                contents=build_prompt(brief),
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_INSTRUCTION,
+                    temperature=0.8,
+                    response_mime_type="application/json",
+                    response_schema=StrategyResult,
+                ),
+            )
         )
     except Exception as exc:  # noqa: BLE001 - surface a clean message to the UI
         raise RuntimeError(_friendly_api_error(exc)) from exc
